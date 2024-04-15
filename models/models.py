@@ -398,6 +398,7 @@ class JiraClient:
                     "issuetype": {"name": "Bug"},
                     "securitylevel": {"name": "Red Hat Employee"},
                     "labels": labels,
+                    "priority": vulnerability.get_severity().capitalize(),
                 },
             )
 
