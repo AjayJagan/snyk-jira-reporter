@@ -10,6 +10,72 @@ DEFAULT_ALLOWED_DEPS = ["pip", "gomodules", "npm", "yarn", "poetry", "maven"]
 total_issue_count = 0
 
 
+def extract_text_from_adf(description):
+    """
+    Extract plain text from Jira Cloud API v3 ADF (Atlassian Document Format).
+    If description is a string, return it as-is. If it's ADF dict, extract text.
+
+    :param description: Either a string or ADF dict
+    :return: Plain text string
+    """
+    if isinstance(description, str):
+        return description
+
+    if not isinstance(description, dict):
+        return ""
+
+    text_parts = []
+
+    def extract_from_node(node):
+        if isinstance(node, dict):
+            if node.get("type") == "text":
+                text_parts.append(node.get("text", ""))
+            elif "content" in node:
+                for child in node["content"]:
+                    extract_from_node(child)
+        elif isinstance(node, list):
+            for item in node:
+                extract_from_node(item)
+
+    extract_from_node(description)
+    return "".join(text_parts)
+
+
+def convert_text_to_adf(text):
+    """
+    Convert plain text to Jira Cloud API v3 ADF (Atlassian Document Format).
+    Preserves line breaks as separate paragraph nodes.
+
+    :param text: Plain text string
+    :return: ADF dict structure
+    """
+    paragraphs = text.split("\n")
+    content = []
+
+    for para in paragraphs:
+        if para.strip():  # Only add non-empty paragraphs
+            content.append({
+                "type": "paragraph",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": para
+                    }
+                ]
+            })
+        else:  # Empty line - add empty paragraph for spacing
+            content.append({
+                "type": "paragraph",
+                "content": []
+            })
+
+    return {
+        "version": 1,
+        "type": "doc",
+        "content": content
+    }
+
+
 def list_snyk_vulnerabilities(
     vulnerabilities: List[Any],
     project_branch: str,
@@ -81,10 +147,21 @@ def segregate_issues(vulnerabilities: List[VulnerabilityData], jira_issues):
     for vulnerability in vulnerabilities:
         jira_snyk_id_list.append(vulnerability.get_jira_snyk_id())
     for jira in jira_issues:
-        description_list = jira["fields"]["description"].replace("\r", "").split("\n")
-        uid = description_list[
-            description_list.index("##Do not edit this section below##") + 2
-        ].replace("##snyk-jira-uid##", "")
+        # Extract plain text from ADF (Jira Cloud API v3) or plain string
+        description_text = extract_text_from_adf(jira["fields"]["description"])
+        description_list = description_text.replace("\r", "").split("\n")
+
+        # Try to extract UID from description
+        try:
+            uid_index = description_list.index("##Do not edit this section below##") + 2
+            uid = description_list[uid_index].replace("##snyk-jira-uid##", "")
+        except (ValueError, IndexError) as e:
+            # Skip issues without the expected format (e.g., manually created or old format)
+            logging.warning(
+                f"Skipping issue {jira.get('key', 'unknown')} - missing UID marker in description"
+            )
+            continue
+
         if uid.strip() not in jira_snyk_id_list:
             if jira["fields"]["status"]["name"] not in ["Resolved", "Closed"]:
                 issues_to_remove.append(jira)
@@ -212,6 +289,10 @@ def main(args):
     if not jira_project_id:
         logging.error("JIRA_PROJECT_ID env variable not defined")
         sys.exit(2)
+    jira_email = os.environ.get("JIRA_EMAIL")
+    if not jira_email:
+        logging.error("JIRA_EMAIL env variable not defined")
+        sys.exit(2)
 
     jira_label_prefix = (
         os.environ.get("JIRA_LABEL_PREFIX")
@@ -236,7 +317,14 @@ def main(args):
         jira_project_id,
         components_mapping,
         dry_run,
+        jira_email,
     )
+
+    # Validate Jira API v3 connection
+    if not jira_client.validate_api_connection():
+        logging.error("Jira API connection validation failed. Exiting.")
+        sys.exit(2)
+
     process_projects(
         jira_client,
         snyk_org_id,

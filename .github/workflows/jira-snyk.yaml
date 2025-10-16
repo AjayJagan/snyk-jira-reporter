@@ -8,8 +8,8 @@ env:
   JIRA_API_TOKEN: ${{ secrets.jira_api_token }}
   SNYK_API_TOKEN: ${{ secrets.snyk_api_token }}
   #JIRA envs
-  JIRA_SERVER: https://issues.redhat.com # Org jira server
-  JIRA_PROJECT_ID: 12340620 # refers to RHOAIENG
+  JIRA_SERVER: https://uat-1-1-redhat.atlassian.net # Org jira server
+  JIRA_PROJECT_ID: RHOAIENG # refers to RHOAIENG
   # SNYK envs
   SNYK_ORG_ID: ed870ef2-8f76-4ea1-ad4b-dacfa225eb69 # refers to the RHOAI org in Snyk
   #other envs

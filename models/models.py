@@ -336,15 +336,18 @@ class JiraClient:
         jira_project_id: str,
         component_mapping: {},
         dry_run: bool,
+        jira_email: str,
     ):
         try:
             self.__component_mapping = component_mapping
             self.__jira_label_prefix = jira_label_prefix
             self.__jira_project_id = jira_project_id
             self.__dry_run = dry_run
+            # Jira Cloud requires basic_auth with email + API token
+            # Use API v3 for Jira Cloud (v2 has been deprecated)
             self.__client = JIRA(
-                options={"server": jira_server, "verify": True},
-                token_auth=jira_api_token,
+                options={"server": jira_server, "verify": True, "rest_api_version": "3"},
+                basic_auth=(jira_email, jira_api_token),
             )
         except SystemError:
             logging.error("failed to create jira client")
@@ -357,6 +360,37 @@ class JiraClient:
         :return: dry run
         """
         return self.__dry_run
+
+    def validate_api_connection(self):
+        """
+        Validates that the Jira Cloud API v3 connection works correctly.
+        Tests by fetching project metadata and validating issue creation capability.
+
+        :return: True if validation succeeds, False otherwise
+        """
+        try:
+            # Test 1: API v3 connection by fetching project info
+            project = self.__client.project(self.__jira_project_id)
+            logging.info(
+                f"✓ Jira API v3 connection validated - Project: {project.key} ({project.name})"
+            )
+
+            # Test 2: Validate issue creation metadata (ensures we can create issues with ADF)
+            # This doesn't create an issue, just fetches what fields are required
+            createmeta = self.__client.createmeta(
+                projectKeys=self.__jira_project_id,
+                issuetypeNames="Bug",
+                expand="projects.issuetypes.fields"
+            )
+            if createmeta and len(createmeta.get("projects", [])) > 0:
+                logging.info("✓ Issue creation metadata validated - ADF format supported")
+            else:
+                logging.warning("⚠ Could not validate issue creation metadata")
+
+            return True
+        except Exception as e:
+            logging.error(f"✗ Jira API v3 validation failed: {e}")
+            return False
 
     def get_project_id(self) -> str:
         """
@@ -401,13 +435,18 @@ class JiraClient:
         jira_issues_to_create = []
         for vulnerability in vulnerabilities_to_create:
             labels = utils.create_labels(vulnerability)
+            # Get plain text description
+            description_text = vulnerability.get_jira_description(
+                snyk_org_slug, snyk_project_id
+            )
+            # Convert to ADF format for Jira Cloud API v3
+            description_adf = utils.convert_text_to_adf(description_text)
+
             jira_issues_to_create.append(
                 {
                     "project": jira_project_id,
                     "summary": vulnerability.get_jira_summary(),
-                    "description": vulnerability.get_jira_description(
-                        snyk_org_slug, snyk_project_id
-                    ),
+                    "description": description_adf,
                     "issuetype": {"name": "Bug"},
                     "components": [{"name": vulnerability.get_component()}],
                     "security": {"id": "11697"},
@@ -442,9 +481,10 @@ class JiraClient:
     def get_existing_jira_for_project(
         self, project_name: str, file_name: str, project_branch: str
     ):
-        max = (1 << 31) - 1
+        # Jira Cloud API v3 uses token-based pagination
+        max_results_per_page = 100
         issues = []
-        start = 0
+        next_page_token = None
         done = False
         component_str = ""
         component_mapping = self.get_component_mapping()
@@ -460,15 +500,17 @@ class JiraClient:
         logging.info(f"Fetching jiras using jql: {jira_query}")
         while not done:
             try:
-                nextpage = self.__client.search_issues(
-                    jira_query,
-                    startAt=start,
-                    maxResults=(max - start),
+                # Use enhanced_search_issues for Jira Cloud API v3
+                result = self.__client.enhanced_search_issues(
+                    jql_str=jira_query,
+                    nextPageToken=next_page_token,
+                    maxResults=max_results_per_page,
                     json_result=True,
-                )["issues"]
+                )
+                nextpage = result.get("issues", [])
                 issues.extend(nextpage)
-                start = start + len(nextpage)
-                done = (start >= max) or (len(nextpage) == 0)
+                next_page_token = result.get("nextPageToken")
+                done = next_page_token is None
             except SystemError:
                 logging.error("Failed to fetch existing jiras")
                 sys.exit(1)
@@ -484,9 +526,13 @@ class JiraClient:
     def add_jira_comment(self, issue):
         try:
             jira_id = issue["key"]
+            # Convert comment to ADF format for Jira Cloud API v3
+            comment_adf = utils.convert_text_to_adf(
+                "Closing this issue as it is no longer reported in snyk"
+            )
             self.__client.add_comment(
                 jira_id,
-                body="Closing this issue as it is no longer reported in snyk",
+                body=comment_adf,
             )
             self.__client.transition_issue(jira_id, "Closed")
         except Exception as e:

@@ -5,6 +5,41 @@ import json
 from models.models import *
 
 
+def convert_text_to_adf(text):
+    """
+    Convert plain text to Jira Cloud API v3 ADF (Atlassian Document Format).
+    Preserves line breaks as separate paragraph nodes.
+
+    :param text: Plain text string
+    :return: ADF dict structure
+    """
+    paragraphs = text.split("\n")
+    content = []
+
+    for para in paragraphs:
+        if para.strip():  # Only add non-empty paragraphs
+            content.append({
+                "type": "paragraph",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": para
+                    }
+                ]
+            })
+        else:  # Empty line - add empty paragraph for spacing
+            content.append({
+                "type": "paragraph",
+                "content": []
+            })
+
+    return {
+        "version": 1,
+        "type": "doc",
+        "content": content
+    }
+
+
 def get_code_analysis_results(
     project_id: str,
     snyk_org_id: str,
