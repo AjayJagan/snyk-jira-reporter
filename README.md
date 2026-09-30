@@ -70,10 +70,14 @@ JIRA_API_TOKEN=your-jira-token-here
 JIRA_PROJECT_ID=your-jira-project-id
 JIRA_PROJECT_KEY=RHOAIENG
 
+# Software catalog (component mapping source of truth)
+# Requires read access to the internal opendatahub-io/software-catalog repo.
+SOFTWARE_CATALOG_TOKEN=your-github-token-here
+SOFTWARE_CATALOG_PROJECTS=RHOAIENG,INFERENG,RHAIENG
+
 # Optional Configuration
 DRY_RUN=true
 JIRA_LABEL_PREFIX=snyk-jira-integration:
-COMPONENT_MAPPING_FILE_PATH=./config/jira_components_mapping.json
 EXCLUDE_FILES_FILE_PATH=./config/exclude_files.json
 ```
 
@@ -93,60 +97,21 @@ INFO:snyk_jira_reporter.clients.jira_client:DRY RUN: X issue(s) would be created
 
 ##Configuration Guide
 
-### Adding New Component Mappings
+### Component Mappings
 
-**Most Common Task: Adding a new repository to Jira component mapping**
+Repository → Jira component mappings are **no longer maintained in this repo**. They are
+fetched at runtime from the internal
+[`opendatahub-io/software-catalog`](https://github.com/opendatahub-io/software-catalog) repo
+(`.claude/skills/software-catalog-query/references/repo_mappings.json`), which is the single
+source of truth and auto-updates.
 
-Edit `config/jira_components_mapping.json`:
+**To add or change a repository's component**, update the mapping in the software-catalog repo.
+The change propagates automatically on the next run — no change is needed here.
 
-```json
-{
-    "Model Serving": [
-        "red-hat-data-services/kserve",
-        "red-hat-data-services/modelmesh-serving",
-        "red-hat-data-services/your-new-repo"  ← Add here
-    ],
-    "Your New Component": [                   ← Or create new component
-        "red-hat-data-services/another-repo"
-    ]
-}
-```
-
-**Steps to add a new repository:**
-
-1. **Find the right component**: Look at the existing mappings to find where your repo belongs
-2. **Add your repository**: Use the full GitHub path format `org-name/repo-name`
-3. **Validate the change**: Run the schema validator to catch any errors immediately
-4. **Commit the change**: Submit a PR with your updated mapping
-
-**Automatic Validation**
-
-This project includes automatic schema validation to catch configuration errors immediately:
-
-```bash
-# Validate your config changes locally
-python scripts/validate_config.py
-
-# This checks for:
-# ✓ Valid JSON format
-# ✓ Correct repository format (org/repo-name)
-# ✓ No duplicate repositories
-# ✓ Valid component names
-```
-
-The validation runs automatically in CI, so any errors will be caught before merge.
-
-**Example: Adding a new MLflow repository**
-
-```json
-{
-    "MLflow": [
-        "red-hat-data-services/mlflow",
-        "red-hat-data-services/mlflow-operator",
-        "red-hat-data-services/mlflow-ui"  ← New addition
-    ]
-}
-```
+Only entries whose `jira_project` is in `SOFTWARE_CATALOG_PROJECTS` (default
+`RHOAIENG,INFERENG,RHAIENG`) are used. Fetching requires `SOFTWARE_CATALOG_TOKEN` with
+`contents:read` on the (internal) catalog repo; the run fails fast if the fetch fails, rather
+than proceeding with an empty mapping.
 
 ### File Exclusions
 
@@ -224,7 +189,8 @@ This helps developers:
 | `JIRA_PROJECT_KEY` | No | `RHOAIENG` | Jira project key for JQL queries |
 | `JIRA_LABEL_PREFIX` | No | `snyk-jira-integration:` | Prefix for tracking labels |
 | `DRY_RUN` | No | `false` | If `true`, shows what would happen without creating issues |
-| `COMPONENT_MAPPING_FILE_PATH` | No | `./config/jira_components_mapping.json` | Component mapping config |
+| `SOFTWARE_CATALOG_TOKEN` | Yes | - | GitHub token with `contents:read` on the internal software-catalog repo |
+| `SOFTWARE_CATALOG_PROJECTS` | No | `RHOAIENG,INFERENG,RHAIENG` | Jira project keys to include from the catalog |
 | `EXCLUDE_FILES_FILE_PATH` | No | `./config/exclude_files.json` | File exclusion config |
 
 ##Development Guide
@@ -272,8 +238,8 @@ DRY_RUN=true python -m snyk_jira_reporter --allowed-severity critical
 ### Common Issues
 
 **"No component mapping found for repo 'org/repo'"**
-- Add the repository to `config/jira_components_mapping.json`
-- Verify the repository name format matches exactly
+- Add the repository to the mapping in the internal `opendatahub-io/software-catalog` repo
+- Verify the repository name format matches exactly (`org/repo`, case-sensitive)
 
 **"Authentication failed - check JIRA_EMAIL and JIRA_API_TOKEN"**
 - Verify your Jira email address is correct
@@ -333,8 +299,8 @@ src/snyk_jira_reporter/
     └── exceptions.py        # Custom exception hierarchy
 
 config/
-├── jira_components_mapping.json  # Repository → Jira component mapping
 └── exclude_files.json           # File exclusion patterns
+                                 # (component mapping is fetched from software-catalog)
 
 .github/workflows/
 ├── jira-snyk.yaml               # Weekly scheduled run
@@ -368,42 +334,17 @@ All endpoints are current and supported as of 2024. The tool includes backward c
 
 ##Example Workflow: Adding a New Repository
 
-1. **Identify the component**: Determine which Jira component your repository belongs to
-2. **Update the mapping**: Add your repo to `config/jira_components_mapping.json`
-3. **Test the change**: Run with `DRY_RUN=true` to verify
-4. **Submit PR**: Include your mapping change in a pull request
-5. **Verify production**: Check that new issues are assigned to the correct component
+Repository → component mappings live in the internal
+[`opendatahub-io/software-catalog`](https://github.com/opendatahub-io/software-catalog) repo,
+not here. To onboard a new repository:
 
-```bash
-# Step 1: Edit the config file
-vim config/jira_components_mapping.json
+1. **Ensure it is monitored in Snyk** (part of the RHOAI Snyk org).
+2. **Add its component mapping** in the software-catalog repo's `repo_mappings.json`.
+3. **Confirm its Jira project** is in `SOFTWARE_CATALOG_PROJECTS` (default `RHOAIENG,INFERENG,RHAIENG`).
+4. That's it — the mapping propagates automatically on the next scheduled run.
 
-# Step 2: Validate your change (automatic schema validation)
-python scripts/validate_config.py
-
-# Step 3: Commit and create PR (CI will also validate)
-git add config/jira_components_mapping.json
-git commit -m "Add my-new-repo to Component Name mapping"
-```
-
-**Schema validation catches common errors automatically:**
-- Invalid JSON format
-- Wrong repository name format (must be `org/repo-name`)
-- Duplicate repositories across components
-- Invalid component names
-- Missing required fields
-
-No need for manual testing - the validator ensures your config is correct!
+Until a repository has a mapping in the catalog, its issues are created without a component and
+labeled `unmapped-repo`; they are re-componented automatically once the mapping appears.
 
 Need help? Check the troubleshooting section above or reach out to the team!
-
-## Repository Component Mapping
-
-*Last updated: 2026-07-13*
-
-**Status**: All repositories mapped
-
-**[View detailed unmapped repositories report →](UNMAPPED_REPOSITORIES.md)**
-
----
 

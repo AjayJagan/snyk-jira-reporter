@@ -8,6 +8,10 @@ env:
   JIRA_API_TOKEN: ${{ secrets.jira_api_token }}
   JIRA_EMAIL: ${{ secrets.jira_email }}
   SNYK_API_TOKEN: ${{ secrets.snyk_api_token }}
+  # Software catalog: read access to the internal opendatahub-io/software-catalog repo.
+  # The default GITHUB_TOKEN cannot read that repo; a PAT/App token is required.
+  SOFTWARE_CATALOG_TOKEN: ${{ secrets.software_catalog_token }}
+  SOFTWARE_CATALOG_PROJECTS: RHOAIENG,INFERENG,RHAIENG
   # JIRA envs
   JIRA_SERVER: https://redhat.atlassian.net # Jira Cloud server
   JIRA_PROJECT_ID: 12340620 # refers to RHOAIENG
@@ -16,7 +20,6 @@ env:
   # SNYK envs
   SNYK_ORG_ID: ed870ef2-8f76-4ea1-ad4b-dacfa225eb69 # refers to the RHOAI org in Snyk
   # config file paths
-  COMPONENT_MAPPING_FILE_PATH: ./config/jira_components_mapping.json
   EXCLUDE_FILES_FILE_PATH: ./config/exclude_files.json
   # other envs
   DRY_RUN: false
@@ -40,12 +43,3 @@ jobs:
 
       - name: execute py script for automation
         run: python -m snyk_jira_reporter --disable-dep-analysis
-
-      - name: commit and push report updates
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "chore: update component mapping reports [skip ci]"
-          file_pattern: "UNMAPPED_REPOSITORIES.md README.md"
-          commit_user_name: "github-actions[bot]"
-          commit_user_email: "41898282+github-actions[bot]@users.noreply.github.com"
-          skip_dirty_check: false

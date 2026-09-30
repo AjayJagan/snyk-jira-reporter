@@ -3,9 +3,12 @@
 from pydantic_settings import BaseSettings
 
 from snyk_jira_reporter.config.constants import (
-    DEFAULT_COMPONENT_MAPPING_PATH,
+    DEFAULT_CATALOG_PROJECTS,
     DEFAULT_EXCLUDE_FILES_PATH,
     DEFAULT_JIRA_LABEL_PREFIX,
+    SOFTWARE_CATALOG_PATH,
+    SOFTWARE_CATALOG_REF,
+    SOFTWARE_CATALOG_REPO,
 )
 
 
@@ -25,7 +28,13 @@ class AppSettings(BaseSettings):
     jira_project_key: str = "RHOAIENG"
     jira_label_prefix: str = DEFAULT_JIRA_LABEL_PREFIX
     dry_run: bool = False
-    component_mapping_file_path: str = DEFAULT_COMPONENT_MAPPING_PATH
     exclude_files_file_path: str = DEFAULT_EXCLUDE_FILES_PATH
+
+    # Software catalog: single source of truth for repo → Jira component mapping.
+    software_catalog_repo: str = SOFTWARE_CATALOG_REPO
+    software_catalog_path: str = SOFTWARE_CATALOG_PATH
+    software_catalog_ref: str = SOFTWARE_CATALOG_REF
+    software_catalog_token: str = ""
+    software_catalog_projects: str = DEFAULT_CATALOG_PROJECTS
 
     model_config = {"env_file": ".env"}

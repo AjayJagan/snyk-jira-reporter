@@ -51,7 +51,7 @@ class TestAppSettings:
             "DRY_RUN",
             "JIRA_PROJECT_KEY",
             "JIRA_LABEL_PREFIX",
-            "COMPONENT_MAPPING_FILE_PATH",
+            "SOFTWARE_CATALOG_PROJECTS",
             "EXCLUDE_FILES_FILE_PATH",
         ]:
             monkeypatch.delenv(key, raising=False)
@@ -67,7 +67,7 @@ class TestAppSettings:
         import pydantic_settings
 
         from snyk_jira_reporter.config.constants import (
-            DEFAULT_COMPONENT_MAPPING_PATH,
+            DEFAULT_CATALOG_PROJECTS,
             DEFAULT_EXCLUDE_FILES_PATH,
             DEFAULT_JIRA_LABEL_PREFIX,
         )
@@ -82,14 +82,14 @@ class TestAppSettings:
             jira_project_key: str = "RHOAIENG"
             jira_label_prefix: str = DEFAULT_JIRA_LABEL_PREFIX
             dry_run: bool = False
-            component_mapping_file_path: str = DEFAULT_COMPONENT_MAPPING_PATH
+            software_catalog_projects: str = DEFAULT_CATALOG_PROJECTS
             exclude_files_file_path: str = DEFAULT_EXCLUDE_FILES_PATH
 
         settings = TestAppSettings()  # type: ignore[call-arg]
         assert settings.jira_project_key == "RHOAIENG"
         assert settings.jira_label_prefix == "snyk-jira-integration:"
         assert settings.dry_run is False
-        assert settings.component_mapping_file_path == "./config/jira_components_mapping.json"
+        assert settings.software_catalog_projects == "RHOAIENG,INFERENG,RHAIENG"
         assert settings.exclude_files_file_path == "./config/exclude_files.json"
 
     def test_dry_run_from_env(self, monkeypatch) -> None:

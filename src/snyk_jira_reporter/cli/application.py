@@ -8,7 +8,7 @@ from snyk_jira_reporter.clients.jira_client import JiraClient
 from snyk_jira_reporter.clients.snyk_client import SnykClient
 from snyk_jira_reporter.config.settings import AppSettings
 from snyk_jira_reporter.exceptions.exceptions import SnykJiraReporterError
-from snyk_jira_reporter.services.component_resolver import generate_component_report, resolve_unmapped_issues
+from snyk_jira_reporter.services.component_resolver import resolve_unmapped_issues
 from snyk_jira_reporter.services.vulnerability_service import process_projects
 
 
@@ -138,24 +138,6 @@ class SnykJiraReporterApp:
             self._logger.error("Failed to check/resolve unmapped issues: %s", e)
             return 0
 
-    def _generate_reports(self, jira_client: JiraClient) -> None:
-        """Generate component mapping reports.
-
-        Args:
-            jira_client: Initialized Jira client.
-
-        Raises:
-            SnykJiraReporterError: If report generation fails critically.
-        """
-        try:
-            self._logger.info("Generating component reports...")
-            generate_component_report(jira_client, self.components_mapping)
-            self._logger.info("Component reports generated successfully")
-
-        except Exception as e:
-            # Log error but don't fail entire process for report generation
-            self._logger.error("Report generation failed: %s", e)
-
     def execute(self) -> int:
         """Execute the complete workflow.
 
@@ -164,20 +146,16 @@ class SnykJiraReporterApp:
         """
         try:
             # Phase 1: Initialize clients
-            self._logger.info("Phase 1/4: Initializing clients...")
+            self._logger.info("Phase 1/3: Initializing clients...")
             snyk_client, jira_client = self._initialize_clients()
 
             # Phase 2: Process vulnerabilities
-            self._logger.info("Phase 2/4: Processing vulnerabilities...")
+            self._logger.info("Phase 2/3: Processing vulnerabilities...")
             self._execute_vulnerability_processing(snyk_client, jira_client)
 
             # Phase 3: Resolve unmapped issues
-            self._logger.info("Phase 3/4: Resolving unmapped issues...")
+            self._logger.info("Phase 3/3: Resolving unmapped issues...")
             resolved_count = self._resolve_unmapped_issues(jira_client)
-
-            # Phase 4: Generate reports
-            self._logger.info("Phase 4/4: Generating reports...")
-            self._generate_reports(jira_client)
 
             self._logger.info("Workflow completed successfully (resolved %d unmapped issues)", resolved_count)
             return 0

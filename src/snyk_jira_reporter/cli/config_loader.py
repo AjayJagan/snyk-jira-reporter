@@ -4,9 +4,10 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from snyk_jira_reporter.clients.software_catalog_client import build_component_mapping, fetch_repo_mappings
 from snyk_jira_reporter.config.settings import AppSettings
 from snyk_jira_reporter.exceptions.exceptions import ConfigurationError
-from snyk_jira_reporter.utils.file_loader import load_component_mapping, load_mapping
+from snyk_jira_reporter.utils.file_loader import load_mapping
 
 
 def load_configuration() -> AppSettings:
@@ -35,18 +36,32 @@ def load_configuration() -> AppSettings:
 def load_configuration_files(settings: AppSettings) -> tuple[dict[str, str], dict[str, Any]]:
     """Load and validate configuration files.
 
+    The component mapping is fetched at runtime from the software-catalog repo
+    (single source of truth); the exclude-files mapping is still a local file.
+
     Args:
-        settings: Application settings containing file paths.
+        settings: Application settings containing catalog config and file paths.
 
     Returns:
         Tuple of (component_mapping, exclude_files_mapping).
 
     Raises:
-        ConfigurationError: If files cannot be loaded or are invalid.
+        ConfigurationError: If the catalog fetch fails or files are invalid.
     """
+    raw_mappings = fetch_repo_mappings(
+        repo=settings.software_catalog_repo,
+        path=settings.software_catalog_path,
+        ref=settings.software_catalog_ref,
+        token=settings.software_catalog_token,
+    )
+    components_mapping = build_component_mapping(
+        raw_mappings,
+        settings.software_catalog_projects.split(","),
+    )
+
     try:
-        components_mapping = load_component_mapping(settings.component_mapping_file_path)
         exclude_files_mapping = load_mapping(settings.exclude_files_file_path)
-        return components_mapping, exclude_files_mapping
     except Exception as e:
         raise ConfigurationError(f"Configuration file error: {e}") from e
+
+    return components_mapping, exclude_files_mapping

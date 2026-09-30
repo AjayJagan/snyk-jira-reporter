@@ -37,38 +37,3 @@ def load_mapping(file_path: str) -> dict[str, Any]:
         raise FileLoadError(f"Invalid JSON in {resolved_path}: {e}") from e
     except OSError as e:
         raise FileLoadError(f"Failed to read {resolved_path}: {e}") from e
-
-
-def load_component_mapping(file_path: str) -> dict[str, str]:
-    """Load a grouped component mapping and invert it to repo → component.
-
-    The JSON file uses a grouped format where keys are Jira component names
-    and values are lists of repository names:
-
-        {"Model Serving": ["org/repo1", "org/repo2"], ...}
-
-    This is inverted to:
-
-        {"org/repo1": "Model Serving", "org/repo2": "Model Serving", ...}
-
-    Args:
-        file_path: Path to the component mapping JSON file.
-
-    Returns:
-        Dictionary mapping repository names to Jira component names.
-
-    Raises:
-        FileLoadError: If the file is missing, invalid, or has duplicate repos.
-    """
-    grouped = load_mapping(file_path)
-    repo_to_component: dict[str, str] = {}
-    for component, repos in grouped.items():
-        if not isinstance(repos, list):
-            raise FileLoadError(f"Expected a list of repos for component '{component}', got {type(repos).__name__}")
-        for repo in repos:
-            if repo in repo_to_component:
-                raise FileLoadError(
-                    f"Duplicate repo '{repo}' found in components '{repo_to_component[repo]}' and '{component}'"
-                )
-            repo_to_component[repo] = component
-    return repo_to_component

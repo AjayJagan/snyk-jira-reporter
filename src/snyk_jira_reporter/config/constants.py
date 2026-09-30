@@ -40,8 +40,14 @@ UID_SECTION_END = "##Do not edit this section above##"
 UID_REGEX = r"##snyk-jira-uid##(.+?)(?:\s|$)"
 
 # Config file defaults
-DEFAULT_COMPONENT_MAPPING_PATH = "./config/jira_components_mapping.json"
 DEFAULT_EXCLUDE_FILES_PATH = "./config/exclude_files.json"
+
+# Software catalog (single source of truth for repo → Jira component mapping)
+SOFTWARE_CATALOG_REPO = "opendatahub-io/software-catalog"
+SOFTWARE_CATALOG_PATH = ".claude/skills/software-catalog-query/references/repo_mappings.json"
+SOFTWARE_CATALOG_REF = "main"
+DEFAULT_CATALOG_PROJECTS = "RHOAIENG,INFERENG,RHAIENG"
+GITHUB_API_BASE_URL = "https://api.github.com"
 
 # HTTP
 DEFAULT_REQUEST_TIMEOUT_SECONDS = 30
